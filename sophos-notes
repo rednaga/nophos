@@ -1,0 +1,24 @@
+rigby:Sophos Anti-Virus diff$ netstat -atp tcp | grep -i listen
+tcp4       0      0  *.50125                *.*                    LISTEN
+tcp4       0      0  *.50124                *.*                    LISTEN
+tcp4       0      0  *.spytechphone         *.*                    LISTEN
+tcp4       0      0  *.blp1                 *.*                    LISTEN
+tcp4       0      0  *.8193                 *.*                    LISTEN
+tcp6       0      0  localhost.6263         *.*                    LISTEN
+tcp4       0      0  localhost.6263         *.*                    LISTEN
+tcp6       0      0  localhost.6258         *.*                    LISTEN
+tcp4       0      0  localhost.6258         *.*                    LISTEN
+tcp4       0      0  localhost.29754        *.*                    LISTEN     
+tcp4       0      0  localhost.1023         *.*                    LISTEN
+
+lsof -n -i4TCP:$PORT | grep LISTEN
+lsof -n -iTCP:$PORT | grep LISTEN
+lsof -n -i:$PORT | grep LISTEN
+
+PORT=50125 lsof -n -i:$PORT | grep LISTEN
+
+rigby:Sophos Anti-Virus diff$ PORT=1023 lsof $PORT | grep LISTEN
+2BUA8C4S2  502 diff   12u     IPv4 0x894f681737f01d05         0t0     TCP localhost:6258 (LISTEN)
+2BUA8C4S2  502 diff   13u     IPv6 0x894f681733ffd75d         0t0     TCP localhost:6258 (LISTEN)
+2BUA8C4S2  502 diff   14u     IPv4 0x894f681737f02ef5         0t0     TCP localhost:6263 (LISTEN)
+2BUA8C4S2  502 diff   15u     IPv6 0x894f681733fcac9d         0t0     TCP localhost:6263 (LISTEN)
