@@ -17,14 +17,33 @@
 #define OAS_GET_KEXT_LOG_LEVEL     2
 
 #define SWI_GET_SOCKET_INFO        0 // Causes hard system hang
+/*
+ * Pass this as the command, also
+ * pass in an empty size_t object which
+ * will be returned with the port number
+ */
 #define SWI_GET_REDIRECT_PORT      1
+/*
+ * Pass this as the command, also
+ * pass in an empty size_t object which
+ * will be returned with the log level value
+ */
 #define SWI_GET_KEXT_LOG_LEVEL     2
+/*
+ * Pass this as the command, also
+ * pass in an empty size_t object which
+ * will be returned with the schema value
+ */
 #define SWI_GET_KEXT_SCHEMA_LEVEL  3
-#define SWI_GET_KEXT_UNKNOWN       4
+/*
+ * Pass this as the command, also
+ * pass in an empty size_t object which
+ * will be returned with the mbuf queue size
+ */
+#define SWI_GET_KEXT_MBUF_QUEUE    4
 
 int main() {
   int result = -1;
-  struct sockaddr_ctl addr;
 
   printf("[*] Sophos fun...\n");
 
@@ -32,6 +51,7 @@ int main() {
   int fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
   if (fd != -1) {
     // Initialize the address structure
+    struct sockaddr_ctl addr;
     bzero(&addr, sizeof(addr));
     addr.sc_len = sizeof(addr);
     addr.sc_family = AF_SYSTEM;
@@ -64,8 +84,8 @@ int main() {
 	// getsockopt oas command 1 for getting expected schema : returns 7
 	size_t o;
 	bzero(&o, sizeof(o));
-	socklen_t len = sizeof(o);
-	result = getsockopt(fd, SO_ACCEPTCONN, 3, &o, &len);
+	socklen_t len = sizeof(size_t);
+	result = getsockopt(fd, SO_ACCEPTCONN, 1, &o, &len);
 	if (result){
 	  fprintf(stderr, "[!] getsockopt failed on cmd call - result was %d\n", result);
 	} else {
