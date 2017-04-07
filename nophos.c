@@ -26,7 +26,7 @@ int main() {
   int result = -1;
   struct sockaddr_ctl addr;
 
-  printf("Sophos fun...\n");
+  printf("[*] Sophos fun...\n");
 
   // Create a socket
   int fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
@@ -47,7 +47,7 @@ int main() {
     strncpy(info.ctl_name, "com.sophos.nke.swi", sizeof(info.ctl_name));
     result = ioctl(fd, CTLIOCGINFO, &info);
     if (result) {
-      printf("Could not get ID for kernel control.\n");
+      printf("[!] Could not get ID for kernel control.\n");
     } else {
 
       // Set address socket id
@@ -57,9 +57,9 @@ int main() {
       // Connect to the socket
       result = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
       if (result) {
-	fprintf(stderr, "connect failed %d\n", result);
+	fprintf(stderr, "[!] connect failed %d\n", result);
       } else {
-	printf("result = 0x%02x\n", result);
+	printf("[+] result = 0x%02x\n", result);
 	// getsockopt swi command 3 for getting expected schema : returns 6
 	// getsockopt oas command 1 for getting expected schema : returns 7
 	size_t o;
@@ -67,30 +67,30 @@ int main() {
 	socklen_t len = sizeof(o);
 	result = getsockopt(fd, SO_ACCEPTCONN, 3, &o, &len);
 	if (result){
-	  fprintf(stderr, "getsockopt failed on cmd call - result was %d\n", result);
+	  fprintf(stderr, "[!] getsockopt failed on cmd call - result was %d\n", result);
 	} else {
-	  printf("getsockopt success : 0x%02x\n", o);
+	  printf("[+] getsockopt success : 0x%02x\n", o);
 	}
       }
     }
-    printf("Closing socket...\n");
+    printf("[-] Closing socket...\n");
     if(close(fd)) {
-      fprintf(stderr, "close failed\n");
+      fprintf(stderr, "[!] close failed\n");
     }
   }
-  printf("Done...\n");
+  printf("[-] Done...\n");
 }
 
-    /*
-    if (!result) {
-      char *secret = "3";
-      socklen_t len = sizeof(secret);
-      result = setsockopt( fd, SYSPROTO_CONTROL, OAS_SET_DIAGNOSTICS_ENABLE, secret, len);
-      if (result){
-	fprintf(stderr, "setsockopt failed on cmd call - result was %d\n", result);
-      } else {
-	printf("setsockopt success : 0x%02x\n", result);
-      }
-    }
-    */
+/*
+  if (!result) {
+  char *secret = "3";
+  socklen_t len = sizeof(secret);
+  result = setsockopt( fd, SYSPROTO_CONTROL, OAS_SET_DIAGNOSTICS_ENABLE, secret, len);
+  if (result){
+  fprintf(stderr, "setsockopt failed on cmd call - result was %d\n", result);
+  } else {
+  printf("setsockopt success : 0x%02x\n", result);
+  }
+  }
+*/
 
