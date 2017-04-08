@@ -16,6 +16,10 @@
 #define OAS_GET_KEXT_SCHEMA_LEVEL  1
 #define OAS_GET_KEXT_LOG_LEVEL     2
 
+#define SWI_SET_UNKNOWN            1
+#define SWI_SET_SECRET             5 // Found used in ServiceManager?
+// XXX: Investigate more
+// Seems to cause Illegal instruction 4 and also Segementation fault 11
 #define SWI_GET_SOCKET_INFO        0 // Causes hard system hang
 /*
  * Pass this as the command, also
@@ -85,13 +89,29 @@ int main() {
 	size_t o;
 	bzero(&o, sizeof(o));
 	socklen_t len = sizeof(size_t);
-	result = getsockopt(fd, SO_ACCEPTCONN, 1, &o, &len);
+	result = getsockopt(fd, SO_ACCEPTCONN, SWI_GET_SOCKET_INFO, &o, &len);
 	if (result){
 	  fprintf(stderr, "[!] getsockopt failed on cmd call - result was %d\n", result);
 	} else {
 	  printf("[+] getsockopt success : 0x%02x\n", o);
 	}
       }
+
+      //char *secret = "3";
+      //socklen_t len = sizeof(secret);
+
+      int optval;
+      int optlen;
+      //      char *optval2;
+      optval = 123;
+      //      setsockopt(fd, SOL_SOCKET, 1, secret, len);
+      result = setsockopt(fd, SYSPROTO_CONTROL, 6, &optval, sizeof optval);
+      if (result){
+	fprintf(stderr, "[!] setsockopt failed on cmd call - result was %d\n", result);
+      } else {
+	printf("[+] setsockopt success : 0x%02x\n", result);
+      }
+
     }
     printf("[-] Closing socket...\n");
     if(close(fd)) {
@@ -100,17 +120,3 @@ int main() {
   }
   printf("[-] Done...\n");
 }
-
-/*
-  if (!result) {
-  char *secret = "3";
-  socklen_t len = sizeof(secret);
-  result = setsockopt( fd, SYSPROTO_CONTROL, OAS_SET_DIAGNOSTICS_ENABLE, secret, len);
-  if (result){
-  fprintf(stderr, "setsockopt failed on cmd call - result was %d\n", result);
-  } else {
-  printf("setsockopt success : 0x%02x\n", result);
-  }
-  }
-*/
-
