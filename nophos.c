@@ -49,7 +49,7 @@
 int main() {
   int result = -1;
 
-  printf("[*] Sophos fun...\n");
+  printf("[\033[0;32m*\033[0m] Sophos fun...\n");
 
   // Create a socket
   int fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
@@ -71,7 +71,7 @@ int main() {
     strncpy(info.ctl_name, "com.sophos.nke.swi", sizeof(info.ctl_name));
     result = ioctl(fd, CTLIOCGINFO, &info);
     if (result) {
-      printf("[!] Could not get ID for kernel control.\n");
+      printf("[\033[0;31m!\033[0m] Could not get ID for kernel control.\n");
     } else {
 
       // Set address socket id
@@ -81,9 +81,9 @@ int main() {
       // Connect to the socket
       result = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
       if (result) {
-	fprintf(stderr, "[!] connect failed %d\n", result);
+	fprintf(stderr, "[\033[0;31m!\033[0m] connect failed %d\n", result);
       } else {
-	printf("[+] result = 0x%02x\n", result);
+	printf("[\033[0;32m+\033[0m] result = 0x%02x\n", result);
 	// getsockopt swi command 3 for getting expected schema : returns 6
 	// getsockopt oas command 1 for getting expected schema : returns 7
 	size_t o;
@@ -91,13 +91,13 @@ int main() {
 	socklen_t len = sizeof(size_t);
 	result = getsockopt(fd, SO_ACCEPTCONN, SWI_GET_SOCKET_INFO, &o, &len);
 	if (result){
-	  fprintf(stderr, "[!] getsockopt failed on cmd call - result was %d\n", result);
+	  fprintf(stderr, "[\033[0;31m!\033[0m] getsockopt failed on cmd call - result was %d\n", result);
 	} else {
-	  printf("[+] getsockopt success : 0x%02x\n", o);
+	  printf("[\033[0;32m+\033[0m] getsockopt success : 0x%02x\n", o);
 	}
       }
 
-      //char *secret = "3";
+      char *secret = "secret";
       //socklen_t len = sizeof(secret);
 
       int optval;
@@ -107,16 +107,16 @@ int main() {
       //      setsockopt(fd, SOL_SOCKET, 1, secret, len);
       result = setsockopt(fd, SYSPROTO_CONTROL, 6, &optval, sizeof optval);
       if (result){
-	fprintf(stderr, "[!] setsockopt failed on cmd call - result was %d\n", result);
+	fprintf(stderr, "[\033[0;31m!\033[0m] setsockopt failed on cmd call - result was %d\n", result);
       } else {
-	printf("[+] setsockopt success : 0x%02x\n", result);
+	printf("[\033[0;32m+\033[0m] setsockopt success : 0x%02x\n", result);
       }
 
     }
-    printf("[-] Closing socket...\n");
+    printf("[\033[0;32m-\033[0m] Closing socket...\n");
     if(close(fd)) {
-      fprintf(stderr, "[!] close failed\n");
+      fprintf(stderr, "[\033[0;31m!\033[0m] close failed\n");
     }
   }
-  printf("[-] Done...\n");
+  printf("[\033[0;32m-\033[0m] Done...\n");
 }
