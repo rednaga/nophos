@@ -225,9 +225,7 @@ $52 = 0x3020107 <== passed text
 
 The structure of mbuf :D :D
 
-
-
-------
+--------
 
 Redirect port is set by a local daemon - the "counterpart daemon". Once this is set,
 they kext will relate information that is "necessary" to the coutnerpart daemon via
