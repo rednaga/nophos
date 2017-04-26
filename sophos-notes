@@ -22,3 +22,205 @@ rigby:Sophos Anti-Virus diff$ PORT=1023 lsof $PORT | grep LISTEN
 2BUA8C4S2  502 diff   13u     IPv6 0x894f681733ffd75d         0t0     TCP localhost:6258 (LISTEN)
 2BUA8C4S2  502 diff   14u     IPv4 0x894f681737f02ef5         0t0     TCP localhost:6263 (LISTEN)
 2BUA8C4S2  502 diff   15u     IPv6 0x894f681733fcac9d         0t0     TCP localhost:6263 (LISTEN)
+
+
+We need to control RDX to get past some weird check;
+setsockopt(???, rsi, rcx, r8, r9);
+
+error = (*kctl->setopt)(kcb->kctl, kcb->unit, kcb->userdata, sopt->sopt_name, data, sopt->sopt_valsize);
+      	   func(rdi,             rsi,           rdx,             rcx,   r8, r9)
+	   	        addr.sc_unit
+
+
+```
+static int
+ctl_ctloutput(struct socket *so, struct sockopt *sopt)
+{
+  struct ctl_cb	*kcb = (struct ctl_cb *)so->so_pcb; //<-- we need to influence this
+  struct kctl   *kctl;
+  int    error = 0;
+  void  *data;
+  size_t	len;
+  
+  if (sopt->sopt_level != SYSPROTO_CONTROL) {
+    return(EINVAL);
+  }
+  
+  if (kcb == NULL)	/* sanity check */
+    return(ENOTCONN);
+    
+  if ((kctl = kcb->kctl) == NULL)
+    return(EINVAL);
+
+  switch (sopt->sopt_dir) {
+    case SOPT_SET:
+      if (kctl->setopt == NULL)
+        return(ENOTSUP);
+      if (sopt->sopt_valsize == 0) {
+        data = NULL;
+      } else {
+        MALLOC(data, void *, sopt->sopt_valsize, M_TEMP, M_WAITOK);
+	if (data == NULL)
+	  return(ENOMEM);
+	error = sooptcopyin(sopt, data, sopt->sopt_valsize, sopt->sopt_valsize);
+      }
+      if (error == 0) {
+        socket_unlock(so, 0);
+	error = (*kctl->setopt)(kcb->kctl, kcb->unit, kcb->userdata, sopt->sopt_name, data, sopt->sopt_valsize);
+	// Because we need to control                 %RDX which is here
+	socket_lock(so, 0);
+      }
+      FREE(data, M_TEMP);
+      break;
+```
+
+https://github.com/st3fan/osx-10.9/blob/master/xnu-2422.1.72/bsd/sys/sys_domain.h
+```
+struct ctl_cb {
+       TAILQ_ENTRY(ctl_cb)	next;
+       lck_mtx_t		*mtx;
+       struct socket		*so;
+       struct kctl		*kctl;
+       void			*userdata; // <-- Somehow get data here?
+       u_int32_t		unit;
+       u_int32_t		usecount;
+}
+```
+
+https://opensource.apple.com/source/xnu/xnu-201.5/bsd/sys/socketvar.h
+```
+struct socket {
+       int     so_zone;	    /* zone we were allocated from */
+       short   so_type;	    /* generic type, see socket.h */
+       short   so_options;  /* from socket call, see socket.h */
+       short   so_linger;   /* time to linger while closing */
+       short   so_state;    /* internal state flags SS_*, below */
+       caddr_t so_pcb;	    /* protocol control block */ // <-- This
+...
+```
+0xffffff7fa1583000 <-- com.sophos.nke.swi
+0xffffff8027f29600 
+
+
+kmod_info           address             size                id    refs     version  name
+0xffffff7fa1591140  0xffffff7fa158a000  0x0000000000008000  109      0      9.6.52  com.sophos.kext.oas
+0xffffff7fa1589148  0xffffff7fa1583000  0x0000000000007000  108      0      9.5.50  com.sophos.nke.swi
+0xffffff7fa157b528  0xffffff7fa1577000  0x0000000000005000  106      0        1.70  com.apple.driver.AudioAUUC
+0xffffff7fa15760a0  0xffffff7fa156d000  0x000000000000a000  105      0  0521.43.29  com.vmware.kext.vmhgfs
+0xffffff7fa156cd10  0xffffff7fa1562000  0x000000000000b000  104      0           1  com.apple.driver.pmtelemetry
+0xffffff7fa1561e20  0xffffff7fa155c000  0x0000000000006000  103      0       1.0.1  com.apple.iokit.IOUserEthernet
+0xffffff7fa1555b80  0xffffff7fa1549000  0x0000000000013000  102      0     108.2.1  com.apple.iokit.IOSurface
+0xffffff7fa1548978  0xffffff7fa153f000  0x000000000000a000  101      0     4.4.5f3  com.apple.iokit.IOBluetoothSerialManager
+0xffffff7fa153a4e0  0xffffff7fa1531000  0x000000000000e000  100      1          11  com.apple.iokit.IOSerialFamily
+0xffffff7fa1530520  0xffffff7fa152c000  0x0000000000005000   99      0       3.6.1  com.apple.driver.AppleUpstreamUserClient
+0xffffff7fa152a9a0  0xffffff7fa1527000  0x0000000000005000   98      0       7.0.0  com.apple.Dont_Steal_Mac_OS_X
+0xffffff7fa151b6f8  0xffffff7fa150e000  0x000000000000e000   95      0      1.2.13  com.apple.driver.AppleMCCSControl
+0xffffff7fa15096f0  0xffffff7fa1500000  0x000000000000e000   94      1    1.0.14d1  com.apple.driver.AppleSMBusController
+0xffffff7fa0855c58  0xffffff7fa0854000  0x0000000000004000   93      1         1.1  com.apple.iokit.IOSMBusFamily
+0xffffff7fa14fd668  0xffffff7fa14fa000  0x0000000000006000   92      0           1  com.apple.driver.CoreCaptureResponder
+0xffffff7fa14f0c68  0xffffff7fa14d8000  0x0000000000022000   91      1       1.0.4  com.apple.driver.corecapture
+0xffffff7fa14d6858  0xffffff7fa1425000  0x00000000000b3000   90      0       274.9  com.apple.driver.AppleHDA
+0xffffff7fa13e32bc  0xffffff7fa12f5000  0x0000000000130000   89      1       274.9  com.apple.driver.DspFuncLib
+0xffffff7fa12f2008  0xffffff7fa12e2000  0x0000000000013000   88      1         525  com.apple.kext.OSvKernDSPLib
+0xffffff7fa12e14a0  0xffffff7fa12de000  0x0000000000004000   87      0           1  com.apple.driver.AppleOSXWatchdog
+0xffffff7fa12d9c58  0xffffff7fa12d0000  0x000000000000e000   86      1       2.4.1  com.apple.iokit.IONDRVSupport
+0xffffff7fa12cf040  0xffffff7fa12c6000  0x000000000000a000   85      0           1  com.apple.driver.AppleHV
+0xffffff7fa12bdd60  0xffffff7fa129c000  0x000000000002a000   84      0     4.4.5f3  com.apple.iokit.IOBluetoothHostControllerUSBTransport
+0xffffff7fa0d27cb0  0xffffff7fa0c99000  0x00000000000c3000   83      1     4.4.5f3  com.apple.iokit.IOBluetoothFamily
+0xffffff7fa1294f30  0xffffff7fa1280000  0x000000000001c000   82      1       274.9  com.apple.driver.AppleHDAController
+0xffffff7fa127b608  0xffffff7fa1274000  0x000000000000c000   81      2       274.9  com.apple.iokit.IOHDAFamily
+0xffffff7fa1262810  0xffffff7fa1244000  0x0000000000030000   80      4       204.4  com.apple.iokit.IOAudioFamily
+0xffffff7fa1242220  0xffffff7fa11c8000  0x000000000007c000   79      2       1.2.0  com.apple.vecLib.kext
+0xffffff7fa11c7550  0xffffff7fa11b7000  0x0000000000011000   78      0       1.0.0  com.apple.driver.ACPI_SMC_PlatformPlugin
+0xffffff7fa11b2b98  0xffffff7fa119e000  0x0000000000019000   77      3       3.1.9  com.apple.driver.AppleSMC
+0xffffff7fa11972c0  0xffffff7fa118c000  0x0000000000012000   76      1       1.0.0  com.apple.driver.IOPlatformPluginLegacy
+0xffffff7fa1189df8  0xffffff7fa1184000  0x0000000000008000   75      2     6.0.0d7  com.apple.driver.IOPlatformPluginFamily
+0xffffff7fa1180260  0xffffff7fa1177000  0x000000000000d000   74      0  0521.43.29  com.vmware.kext.VMwareGfx
+0xffffff7fa1167b78  0xffffff7fa113d000  0x000000000003a000   73      7       2.4.1  com.apple.iokit.IOGraphicsFamily
+0xffffff7fa113c9d0  0xffffff7fa113b000  0x0000000000002000   72      0       4.0.0  com.apple.driver.AppleIntelSlowAdaptiveClocking
+0xffffff7fa085ac78  0xffffff7fa0858000  0x0000000000005000   71      1       1.0.0  com.apple.iokit.IOSlowAdaptiveClockingFamily
+0xffffff7fa1137508  0xffffff7fa112f000  0x0000000000009000   69      0         3.0  com.apple.filesystems.autofs
+0xffffff7fa112d020  0xffffff7fa112a000  0x0000000000005000   68      1         1.0  com.apple.kext.triggers
+0xffffff7fa059ccb0  0xffffff7fa0595000  0x000000000000a000   67      0       1.0.1  com.apple.driver.usb.IOUSBHostHIDDevice
+0xffffff7fa06d2dd0  0xffffff7fa06ac000  0x000000000002f000   66      0       1.0.1  com.apple.driver.usb.AppleUSBHub
+0xffffff7fa0bd0420  0xffffff7fa0bcd000  0x0000000000009000   65      0       5.0.0  com.apple.driver.usb.cdc
+0xffffff7fa0bc77e8  0xffffff7fa0bc5000  0x0000000000008000   64      1       5.0.0  com.apple.driver.usb.networking
+0xffffff7fa06e7008  0xffffff7fa06e3000  0x0000000000008000   63      1       1.0.1  com.apple.driver.usb.AppleUSBHostCompositeDevice
+0xffffff7fa08aa980  0xffffff7fa0899000  0x000000000001a000   62      0       3.7.7  com.apple.iokit.IOSCSIMultimediaCommandsDevice
+0xffffff7fa0892350  0xffffff7fa088d000  0x0000000000009000   61      1         1.8  com.apple.iokit.IOBDStorageFamily
+0xffffff7fa08853c0  0xffffff7fa087f000  0x000000000000b000   60      2         1.8  com.apple.iokit.IODVDStorageFamily
+0xffffff7fa0876c30  0xffffff7fa086e000  0x000000000000e000   59      3         1.8  com.apple.iokit.IOCDStorageFamily
+0xffffff7fa0869748  0xffffff7fa0863000  0x0000000000007000   58      0       3.7.7  com.apple.iokit.SCSITaskUserClient
+0xffffff7fa0a4c390  0xffffff7fa0a44000  0x000000000000d000   56      0       2.6.2  com.apple.iokit.IOAHCISerialATAPI
+0xffffff7f9ff17eb0  0xffffff7f9fefd000  0x000000000002b000   55      3       3.7.7  com.apple.iokit.IOSCSIArchitectureModelFamily
+0xffffff7fa0a6c0d0  0xffffff7fa0a51000  0x000000000001c000   54      0       2.8.5  com.apple.iokit.IOAHCIBlockStorage
+0xffffff7fa0938a40  0xffffff7fa0928000  0x0000000000011000   53      0     2.7.0b1  com.apple.driver.Intel82574L
+0xffffff7fa0a1d668  0xffffff7fa0a14000  0x000000000000a000   52      0       2.5.1  com.apple.driver.AppleIntelPIIXATA
+0xffffff7fa09e2668  0xffffff7fa09d4000  0x0000000000019000   51      1       2.5.3  com.apple.iokit.IOATAFamily
+0xffffff7fa1099c98  0xffffff7fa107b000  0x000000000001f000   50      0       3.1.8  com.apple.driver.AppleAHCIPort
+0xffffff7fa0a39520  0xffffff7fa0a26000  0x000000000001b000   49      3       2.8.1  com.apple.iokit.IOAHCIFamily
+0xffffff7fa06f5548  0xffffff7fa06eb000  0x000000000000b000   48      0       1.0.1  com.apple.driver.usb.AppleUSBEHCIPCI
+0xffffff7fa067ecb8  0xffffff7fa067b000  0x0000000000004000   47      0       1.0.1  com.apple.driver.usb.AppleUSBUHCIPCI
+0xffffff7fa066ee38  0xffffff7fa0659000  0x000000000001f000   46      1       1.0.1  com.apple.driver.usb.AppleUSBUHCI
+0xffffff7fa0648fd8  0xffffff7fa0616000  0x000000000003f000   45      3       1.0.1  com.apple.driver.usb.AppleUSBEHCI
+0xffffff7fa0607438  0xffffff7fa05ee000  0x0000000000020000   44      0       1.0.1  com.apple.driver.usb.AppleUSBXHCIPCI
+0xffffff7fa05dc5e0  0xffffff7fa05a8000  0x0000000000040000   43      1       1.0.1  com.apple.driver.usb.AppleUSBXHCI
+0xffffff7fa105ea40  0xffffff7fa105c000  0x0000000000003000   41      0     1.0.0d1  com.apple.AppleFSCompression.AppleFSCompressionTypeDataless
+0xffffff7fa1059460  0xffffff7fa1054000  0x0000000000006000   40      0       1.0.0  com.apple.AppleFSCompression.AppleFSCompressionTypeZlib
+0xffffff7fa0b7da18  0xffffff7fa0b75000  0x000000000000a000   39      0          38  com.apple.BootCache
+0xffffff7fa090ff50  0xffffff7fa08f4000  0x000000000002d000   38      2         3.2  com.apple.iokit.IONetworkingFamily
+0xffffff7fa04b45d0  0xffffff7fa043e000  0x000000000009a000   37      0     900.4.1  com.apple.iokit.IOUSBFamily
+0xffffff7fa03e5db4  0xffffff7fa0397000  0x000000000006a000   36     13       1.0.1  com.apple.iokit.IOUSBHostFamily
+0xffffff7fa03949a8  0xffffff7fa0393000  0x0000000000004000   35      2       1.0.1  com.apple.driver.AppleUSBHostMergeProperties
+0xffffff7fa08c90e0  0xffffff7fa08c3000  0x000000000000a000   34      1         2.0  com.apple.driver.AppleEFINVRAM
+0xffffff7fa08c0a10  0xffffff7fa08be000  0x0000000000005000   33      1         2.0  com.apple.driver.AppleEFIRuntime
+0xffffff7fa111ccb0  0xffffff7fa1119000  0x0000000000004000   32      0         4.0  com.apple.driver.AppleACPIButtons
+0xffffff7fa0560c58  0xffffff7fa0509000  0x0000000000078000   31      2       2.0.0  com.apple.iokit.IOHIDFamily
+0xffffff7fa103f9c8  0xffffff7fa103d000  0x0000000000003000   30      0         1.8  com.apple.driver.AppleHPET
+0xffffff7fa0eb34f0  0xffffff7fa0eac000  0x0000000000008000   29      0         2.0  com.apple.driver.AppleRTC
+0xffffff7fa0e81ab8  0xffffff7fa0e7e000  0x0000000000004000   28      0         2.1  com.apple.driver.AppleSMBIOS
+0xffffff7fa1078a28  0xffffff7fa1076000  0x0000000000003000   27      0         1.7  com.apple.driver.AppleAPIC
+0xffffff7fa1127280  0xffffff7fa1120000  0x0000000000008000   26      0         163  com.apple.nke.applicationfirewall
+0xffffff7fa0299c00  0xffffff7fa0291000  0x0000000000009000   25      0           3  com.apple.security.quarantine
+0xffffff7fa028b588  0xffffff7fa0273000  0x000000000001e000   24      1       300.0  com.apple.security.sandbox
+0xffffff7fa0271008  0xffffff7fa026e000  0x0000000000005000   23      2     1.0.0d1  com.apple.kext.AppleMatch
+0xffffff7fa01c5b08  0xffffff7fa01c4000  0x0000000000002000   22      0           8  com.apple.security.TMSafetyNet
+0xffffff7fa0f6f60c  0xffffff7fa0f4d000  0x000000000002b000   21      0           2  com.apple.driver.AppleKeyStore
+0xffffff7fa0264808  0xffffff7fa025c000  0x0000000000012000   20      2       1.0.5  com.apple.driver.AppleMobileFileIntegrity
+0xffffff7fa0f47580  0xffffff7fa0f2f000  0x000000000001e000   19      1         1.0  com.apple.driver.AppleCredentialManager
+0xffffff7fa0951930  0xffffff7fa0940000  0x0000000000019000   18      0       417.4  com.apple.driver.DiskImages
+0xffffff7fa08ba4d8  0xffffff7fa08b7000  0x0000000000007000   17      2          31  com.apple.iokit.IOReportFamily
+0xffffff7fa05054e0  0xffffff7fa04fe000  0x000000000000b000   16      1       28.30  com.apple.driver.AppleFDEKeyStore
+0xffffff7f9fe82258  0xffffff7f9fe7b000  0x0000000000008000   15      0      9.5.50  com.sophos.driver.devctrl
+0xffffff7f9fe65550  0xffffff7f9fe4c000  0x0000000000027000   14      9         2.1  com.apple.iokit.IOStorageFamily
+0xffffff7fa10f59f8  0xffffff7fa10a9000  0x0000000000060000   13      1         4.0  com.apple.driver.AppleACPIPlatform
+0xffffff7f9ff65c48  0xffffff7f9ff40000  0x0000000000030000   12     20         2.9  com.apple.iokit.IOPCIFamily
+0xffffff7fa05a2a00  0xffffff7fa059f000  0x0000000000009000   11     21         1.4  com.apple.iokit.IOACPIFamily
+0xffffff7fa02af000  0xffffff7fa02a8000  0x0000000000009000   10      1           1  com.apple.kec.Libm
+0xffffff7fa02a56b8  0xffffff7fa029b000  0x000000000000d000    9      0           1  com.apple.kec.pthread
+0xffffff7fa0226ea0  0xffffff7fa01c7000  0x0000000000095000    8      4         1.0  com.apple.kec.corecrypto
+0xffffff8025f41e00  0x0000000000000000  0x0000000000000000    7     57      15.5.0  com.apple.kpi.unsupported
+0xffffff8025f41d00  0x0000000000000000  0x0000000000000000    6     43      15.5.0  com.apple.kpi.private
+0xffffff8025f41c00  0x0000000000000000  0x0000000000000000    5     85      15.5.0  com.apple.kpi.mach
+0xffffff8025f41100  0x0000000000000000  0x0000000000000000    4     96      15.5.0  com.apple.kpi.libkern
+0xffffff8025f41200  0x0000000000000000  0x0000000000000000    3     88      15.5.0  com.apple.kpi.iokit
+0xffffff8025f41b00  0x0000000000000000  0x0000000000000000    2      8      15.5.0  com.apple.kpi.dsep
+0xffffff8025f41400  0x0000000000000000  0x0000000000000000    1     77      15.5.0  com.apple.kpi.bsd
+
+
+structure of mbuf https://opensource.apple.com/source/xnu/xnu-201.5/bsd/sys/mbuf.h.auto.html
+
+
+From the send handler in swi;
+gdb$ x/10xw $rdi
+0xffffff807ab4b000: 0x00000000 0x00000000 0x00000000 0x00000000
+0xffffff807ab4b010: 0x7ab4b0f8 0xffffff80 0x00000005 0x00020001
+0xffffff807ab4b020: 0x00000000 0x00000000    \____ size of buf, preceeded by the point to the data
+gdb$ p/x 0xffffff807ab4b010
+$50 = 0xffffff807ab4b010
+gdb$ p/x *0xffffff807ab4b010
+$51 = 0x7ab4b0f8
+gdb$ p/x *0xffffff807ab4b0f8
+$52 = 0x3020107 <== passed text
+
+The structure of mbuf :D :D

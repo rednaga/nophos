@@ -1,0 +1,62 @@
+Kernel is located in memory at 0xffffff8012c00000 with uuid of 749F71AC-4136-320E-8416-570E59A180B4
+0xffffff7f82183000
+0xffffff8012c00000
+0xffffff8012d985f8
+
+(0xffffff7f82183000 + 0x2600)
+
+trying -- http://ho.ax/posts/2012/02/vmware-hardware-debugging/
+add-symbol-file /Library/Developer/KDKs/KDK_10.11.5_15F34.kdk/System/Library/Kernels/kernel.development.dSYM/
+target remote localhost:8864
+source  ~/repo/kgmacros/kgmacros_mavericks
+
+
+```
+(copy in dev kernel)
+sudo nvram boot-args="pmuflags=1 debug=0x144 kext-dev-mode=1 kcsuffix=development -v"
+```
+
+```
+(lldb) target create /Library/Developer/KDKs/KDK_10.11.5_15F34.kdk/System/Library/Kernels/kernel
+
+target create "/Library/Developer/KDKs/KDK_10.11.5_15F34.kdk/System/Library/Kernels/kernel.development"
+
+...
+(lldb) command script import "/Library/Developer/KDKs/KDK_10.11.5_15F34.kdk/System/Library/Kernels/kernel.dSYM/Contents/Resources/DWARF/../Python/kernel.py"
+...
+kdp-remote 172.16.210.142
+```
+
+
+```
+(lldb) showallkexts
+UUID                                 kmod_info            address              size                  id  refs              version name
+089A2B10-D121-3E9C-AEF7-5F2B9663C184 0xffffff7f8d0e9148   0xffffff7f8d0e3000   0x7000               108     0               9.5.50 com.sophos.nke.swi
+04E5D128-736A-3916-9463-823F4FB25A9A 0xffffff7f8d136140   0xffffff7f8d130000   0x7000               107     0               9.5.50 com.sophos.kext.oas
+...
+```
+
+0xffffff7f8d0e3000 + 0x20EF
+            0x20EF
+0xffffff7f8d0e50EF
+
+```
+(lldb) b 0xffffff7f8d0e50EF
+Breakpoint 1: address = 0xffffff7f8d0e50ef
+(lldb) continue
+Process 1 resuming
+```
+
+```
+Process 1 stopped
+* thread #3, name = '0xffffff8014177920', queue = '0x0', stop reason = breakpoint 1.1
+    frame #0: 0xffffff7f8d0e50ef
+    ->  0xffffff7f8d0e50ef: int3
+        0xffffff7f8d0e50f0: movq   %rsp, %rbp
+	0xffffff7f8d0e50f3: pushq  %r15
+	0xffffff7f8d0e50f5: pushq  %r14
+```
+
+ 0xffffff7f8d0e5600
+ 0xffffff7f80ae3000 + 0x2600
+ 0xffffff7f80ae5600
