@@ -224,3 +224,17 @@ gdb$ p/x *0xffffff807ab4b0f8
 $52 = 0x3020107 <== passed text
 
 The structure of mbuf :D :D
+
+
+
+------
+
+Redirect port is set by a local daemon - the "counterpart daemon". Once this is set,
+they kext will relate information that is "necessary" to the coutnerpart daemon via
+that local socket. Interestingly enough -- anyone can connect to that socket as well
+and spam data (more bugs?).
+
+So if we kill counterpart daemon, we can race it to connect to kext - this could be
+a user -> kernel escalation.
+
+Otherwise we could potentially do user -> sophos user via the local socket.
